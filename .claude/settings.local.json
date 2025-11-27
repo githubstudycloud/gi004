@@ -53,7 +53,8 @@
       "Bash(git config:*)",
       "Bash(unset:*)",
       "Bash(git remote set-url:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(timeout 15 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@43.135.164.204 \"echo ''SSH 连接成功''; docker ps\")"
     ],
     "deny": [],
     "ask": []

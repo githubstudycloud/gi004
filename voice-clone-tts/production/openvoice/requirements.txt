@@ -1,0 +1,14 @@
+# OpenVoice 依赖
+#
+# 核心依赖（需要从源码安装 OpenVoice）
+# git clone https://github.com/myshell-ai/OpenVoice.git
+# cd OpenVoice && pip install -e .
+
+torch>=2.0.0
+torchaudio>=2.0.0
+numpy>=1.21.0
+librosa>=0.10.0
+soundfile>=0.12.0
+
+# 基础TTS（用于生成初始语音）
+edge-tts>=6.1.0
