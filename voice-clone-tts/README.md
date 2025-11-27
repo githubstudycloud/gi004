@@ -1,368 +1,205 @@
-# 音色提取与TTS语音生成方案
+# 音色克隆与TTS语音生成方案
 
-本项目探究使用 Python 从音频中提取音色特征，并结合 ChatTTS 等模型生成语音的技术方案。
+本项目探究使用 Python 从音频中提取音色特征，并结合 TTS 模型生成语音的技术方案。
 
-## 📋 目录
+## 📋 项目结构
 
-- [方案概述](#方案概述)
-- [方案一：ChatTTS + Speaker Embedding](#方案一chattts--speaker-embedding)
-- [方案二：OpenVoice 音色克隆](#方案二openvoice-音色克隆)
-- [方案三：Coqui TTS + XTTS-v2](#方案三coqui-tts--xtts-v2)
-- [方案四：SpeechBrain + ChatTTS 组合](#方案四speechbrain--chattts-组合)
-- [方案对比](#方案对比)
-- [安装指南](#安装指南)
+```
+voice-clone-tts/
+├── README.md                     # 本文档（方案总结）
+├── requirements.txt              # 基础依赖
+├── examples/                     # 旧版示例代码（已废弃）
+└── solutions/                    # 各方案详细实现
+    ├── 01-openvoice/            # OpenVoice 音色克隆
+    ├── 02-coqui-xtts/           # Coqui XTTS-v2
+    ├── 03-gpt-sovits/           # GPT-SoVITS
+    ├── 04-cosyvoice/            # CosyVoice (阿里)
+    └── 05-fish-speech/          # Fish-Speech
+```
 
 ---
 
-## 方案概述
+## 🎯 方案总结对比
 
-音色克隆 TTS 的核心流程：
+| 方案 | 音色提取 | 中文质量 | 参考音频需求 | 安装难度 | 推荐场景 |
+|------|---------|---------|-------------|---------|---------|
+| **OpenVoice** | ✅ 支持 | ⭐⭐⭐⭐ | 3-10秒 | ⭐⭐⭐ | 音色转换 |
+| **Coqui XTTS** | ✅ 支持 | ⭐⭐⭐ | 6秒 | ⭐⭐⭐⭐⭐ | 多语言克隆 |
+| **GPT-SoVITS** | ✅ 支持 | ⭐⭐⭐⭐⭐ | 5秒/1分钟微调 | ⭐⭐ | **中文首选** |
+| **CosyVoice** | ✅ 支持 | ⭐⭐⭐⭐⭐ | 3-10秒 | ⭐⭐ | 跨语言/指令控制 |
+| **Fish-Speech** | ✅ 支持 | ⭐⭐⭐⭐ | 10-30秒 | ⭐⭐⭐ | 低显存/快速推理 |
 
-```
-参考音频 → 音色特征提取(Speaker Embedding) → TTS模型 → 生成目标音频
-```
+### 🏆 推荐选择
 
-### 关键技术点
-
-1. **Speaker Embedding（说话人嵌入）**：将说话人的声音特征编码为一个向量
-2. **Tone Color Converter（音色转换器）**：将生成的语音转换为目标音色
-3. **Zero-shot Voice Cloning（零样本语音克隆）**：仅需几秒参考音频即可克隆
+1. **中文最佳**: GPT-SoVITS 或 CosyVoice
+2. **最简单易用**: Coqui XTTS-v2（一行代码）
+3. **低显存**: Fish-Speech（仅需 4GB）
+4. **音色转换**: OpenVoice（分离音色和内容）
+5. **跨语言**: CosyVoice（中文音频说英文）
 
 ---
 
-## 方案一：ChatTTS + Speaker Embedding
+## 📦 各方案简介
 
-### 简介
+### 方案一：OpenVoice
 
-[ChatTTS](https://github.com/2noise/chattts) 是一个专为日常对话设计的生成式语音模型，支持中英文，音质自然流畅。
-
-### 核心特点
-
-- ✅ 支持细粒度韵律控制（笑声、停顿等）
-- ✅ 中英文混合支持良好
-- ✅ 可保存和加载 speaker embedding (.pt文件)
-- ⚠️ 不支持直接从音频提取音色（需配合其他工具）
-
-### 音色使用方式
+**特点**：音色与内容分离，可将任意语音转换为目标音色
 
 ```python
-import ChatTTS
-import torch
-
-# 初始化
-chat = ChatTTS.Chat()
-chat.load(compile=False)
-
-# 方式1: 随机采样说话人
-rand_spk = chat.sample_random_speaker()
-print(rand_spk)  # 保存此值以便复用
-
-# 方式2: 加载预保存的 .pt 音色文件
-spk = torch.load("speaker_embedding.pt", map_location="cpu")
-
-# 设置推理参数
-params_infer_code = ChatTTS.Chat.InferCodeParams(
-    spk_emb=spk,        # 说话人嵌入
-    temperature=0.3,     # 温度参数
-    top_P=0.7,
-    top_K=20,
-)
-
-# 生成语音
-wavs = chat.infer(
-    ["你好，这是一段测试语音。"],
-    params_infer_code=params_infer_code,
-)
-```
-
-### 音色文件来源
-
-1. **ChatTTS_Speaker 项目**：提供预训练的稳定音色种子
-   - GitHub: https://github.com/6drf21e/ChatTTS_Speaker
-2. **自行采样保存**：使用 `sample_random_speaker()` 采样满意的音色后保存
-
-### 局限性
-
-ChatTTS 本身**不支持从任意音频提取音色**，需要配合方案四中的 SpeechBrain 等工具。
-
----
-
-## 方案二：OpenVoice 音色克隆
-
-### 简介
-
-[OpenVoice](https://github.com/myshell-ai/OpenVoice) 是 MIT 和 MyShell 开发的即时语音克隆模型，支持从任意音频提取音色。
-
-### 核心特点
-
-- ✅ **真正的音色克隆**：可从任意音频提取音色
-- ✅ 只需几秒参考音频
-- ✅ 支持多语言
-- ✅ MIT 开源许可，可商用
-- ✅ 分离音色和语言/口音控制
-
-### 工作原理
-
-```
-参考音频 → SE Extractor → Tone Color Embedding
-                                    ↓
-文本 → Base TTS → 基础语音 → Tone Color Converter → 目标音色语音
-```
-
-### 代码示例
-
-```python
-import os
-import torch
 from openvoice import se_extractor
 from openvoice.api import ToneColorConverter
 
-# 设备配置
-device = "cuda:0" if torch.cuda.is_available() else "cpu"
+# 提取音色
+target_se, _ = se_extractor.get_se(reference_audio, converter, vad=True)
 
-# 加载音色转换器
-ckpt_converter = 'checkpoints_v2/converter'
-tone_color_converter = ToneColorConverter(
-    f'{ckpt_converter}/config.json',
-    device=device
-)
-tone_color_converter.load_ckpt(f'{ckpt_converter}/checkpoint.pth')
-
-# 1. 从参考音频提取音色
-reference_audio = 'reference_speaker.mp3'
-target_se, audio_name = se_extractor.get_se(
-    reference_audio,
-    tone_color_converter,
-    vad=True  # 启用语音活动检测
-)
-
-# 2. 加载源音色（基础TTS的音色）
-source_se = torch.load(f'{ckpt_converter}/ses/base_se.pth', map_location=device)
-
-# 3. 音色转换
-tone_color_converter.convert(
-    audio_src_path='generated_base.wav',  # 基础TTS生成的音频
-    src_se=source_se,
-    tgt_se=target_se,
-    output_path='output_cloned.wav'
-)
+# 转换音色
+converter.convert(source_audio, src_se, target_se, output_path)
 ```
 
-### 安装
-
-```bash
-git clone https://github.com/myshell-ai/OpenVoice.git
-cd OpenVoice
-pip install -e .
-
-# 下载模型检查点
-# V2版本: https://huggingface.co/myshell-ai/OpenVoiceV2
-```
+**详细文档**: [solutions/01-openvoice/](solutions/01-openvoice/)
 
 ---
 
-## 方案三：Coqui TTS + XTTS-v2
+### 方案二：Coqui XTTS-v2
 
-### 简介
-
-[Coqui TTS](https://github.com/coqui-ai/TTS) 是功能最全面的开源 TTS 工具包，XTTS-v2 支持零样本语音克隆。
-
-### 核心特点
-
-- ✅ 功能全面，支持多种 TTS 模型
-- ✅ XTTS-v2 支持 17 种语言
-- ✅ 只需 6 秒参考音频
-- ✅ 内置 Speaker Encoder
-- ⚠️ 注意：Coqui 公司已关闭，但开源项目仍可用
-
-### 代码示例
+**特点**：一行代码完成克隆，支持 17 种语言
 
 ```python
 from TTS.api import TTS
 
-# 初始化 XTTS-v2 模型
-tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2", gpu=True)
-
-# 直接使用参考音频进行语音克隆
-tts.tts_to_file(
-    text="你好，这是克隆后的语音。",
-    file_path="output.wav",
-    speaker_wav="reference_speaker.wav",  # 参考音频
-    language="zh-cn"
-)
+tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2")
+tts.tts_to_file(text="你好", file_path="out.wav", speaker_wav="ref.wav", language="zh-cn")
 ```
 
-### 提取 Speaker Embedding
-
-```python
-from TTS.utils.synthesizer import Synthesizer
-from TTS.tts.utils.speakers import SpeakerManager
-
-# 使用 Speaker Encoder 提取嵌入
-speaker_manager = SpeakerManager(
-    encoder_model_path="path/to/encoder_model.pth",
-    encoder_config_path="path/to/encoder_config.json"
-)
-
-# 从音频计算 embedding
-embedding = speaker_manager.compute_embedding_from_clip("reference.wav")
-```
-
-### 安装
-
-```bash
-pip install TTS
-
-# 或从源码安装
-git clone https://github.com/coqui-ai/TTS
-cd TTS
-pip install -e .
-```
+**详细文档**: [solutions/02-coqui-xtts/](solutions/02-coqui-xtts/)
 
 ---
 
-## 方案四：SpeechBrain + ChatTTS 组合
+### 方案三：GPT-SoVITS
 
-### 简介
-
-结合 [SpeechBrain](https://speechbrain.github.io/) 的说话人编码器提取音色特征，再用于 ChatTTS 等模型。
-
-### 核心特点
-
-- ✅ SpeechBrain 提供高质量的 Speaker Embedding
-- ✅ 可与多种 TTS 模型组合
-- ✅ 灵活性高
-- ⚠️ 需要额外的嵌入空间映射
-
-### 代码示例
+**特点**：少样本学习，1分钟数据微调达到极佳效果
 
 ```python
-from speechbrain.inference.speaker import EncoderClassifier
-import torch
+# 启动 API 服务
+# python api_v2.py -a 127.0.0.1 -p 9880
 
-# 加载预训练的说话人编码器
-classifier = EncoderClassifier.from_hparams(
-    source="speechbrain/spkrec-ecapa-voxceleb",
-    savedir="pretrained_models/spkrec-ecapa-voxceleb"
-)
-
-# 从音频提取 embedding
-embedding = classifier.encode_file("reference_speaker.wav")
-print(f"Embedding shape: {embedding.shape}")  # [1, 192]
-
-# 保存 embedding
-torch.save(embedding, "speaker_embedding.pt")
-
-# 计算两个音频的相似度
-emb1 = classifier.encode_file("speaker1.wav")
-emb2 = classifier.encode_file("speaker2.wav")
-similarity = torch.nn.functional.cosine_similarity(emb1, emb2)
-print(f"Similarity: {similarity.item()}")
+import requests
+response = requests.post("http://127.0.0.1:9880/tts", json={
+    "text": "你好",
+    "ref_audio_path": "reference.wav",
+    "text_lang": "zh"
+})
 ```
 
-### 与 ChatTTS 结合（实验性）
-
-```python
-# 注意：这需要进行嵌入空间的映射，因为两者的 embedding 维度不同
-# ChatTTS 使用自己的 speaker embedding 格式
-
-# 方法1：训练一个映射网络
-# 方法2：使用 ChatTTS 的音色种子库匹配最相似的音色
-```
-
-### 安装
-
-```bash
-pip install speechbrain
-```
+**详细文档**: [solutions/03-gpt-sovits/](solutions/03-gpt-sovits/)
 
 ---
 
-## 方案五：pyannote-audio 音色分析
+### 方案四：CosyVoice
 
-### 简介
-
-[pyannote-audio](https://github.com/pyannote/pyannote-audio) 专注于说话人分析，可用于音色特征提取。
-
-### 代码示例
+**特点**：阿里开源，3秒克隆，支持情感/指令控制
 
 ```python
-from pyannote.audio import Model, Inference
+from cosyvoice.cli.cosyvoice import CosyVoice
 
-# 加载说话人嵌入模型
-model = Model.from_pretrained(
-    "pyannote/embedding",
-    use_auth_token="YOUR_HF_TOKEN"
-)
+model = CosyVoice("pretrained_models/CosyVoice-300M")
 
-# 创建推理器
-inference = Inference(model, window="whole")
+# 零样本克隆
+output = model.inference_zero_shot(text, prompt_text, prompt_audio)
 
-# 提取 embedding
-embedding = inference("reference_speaker.wav")
-print(f"Embedding shape: {embedding.shape}")
+# 跨语言（中文音频说英文）
+output = model.inference_cross_lingual(english_text, chinese_audio)
+
+# 指令控制
+output = model.inference_instruct(text, speaker, "用开心的语气")
 ```
 
----
-
-## 方案对比
-
-| 方案 | 音色提取 | TTS质量 | 中文支持 | 易用性 | 推荐场景 |
-|------|---------|---------|---------|--------|---------|
-| **ChatTTS** | ❌ 不支持 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | 中文对话TTS |
-| **OpenVoice** | ✅ 支持 | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | **推荐：音色克隆** |
-| **Coqui XTTS** | ✅ 支持 | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | 多语言克隆 |
-| **SpeechBrain** | ✅ 支持 | N/A | N/A | ⭐⭐⭐ | 音色分析/识别 |
-
-### 推荐组合
-
-1. **最简单**：OpenVoice（端到端音色克隆）
-2. **中文最佳**：OpenVoice 提取音色 + ChatTTS 生成
-3. **多语言**：Coqui XTTS-v2
+**详细文档**: [solutions/04-cosyvoice/](solutions/04-cosyvoice/)
 
 ---
 
-## 安装指南
+### 方案五：Fish-Speech
+
+**特点**：低显存(4GB)，快速推理，SOTA 质量
+
+```python
+# 本地推理或 API 调用
+from fish_speech.inference import inference
+
+# 或使用 Fish Audio API
+api = FishSpeechAPI(api_key="your-key")
+api.clone(text, reference_audio, output_path)
+```
+
+**详细文档**: [solutions/05-fish-speech/](solutions/05-fish-speech/)
+
+---
+
+## ⚠️ 关于 ChatTTS 的说明
+
+**ChatTTS 本身不支持从音频提取音色**。
+
+- ChatTTS 使用 768 维的 speaker embedding
+- SpeechBrain 等工具提取的是 192 维 embedding
+- 两者维度不兼容，无法直接使用
+
+**ChatTTS 的正确用法**：
+1. 使用 `sample_random_speaker()` 随机采样音色
+2. 使用 [ChatTTS_Speaker](https://github.com/6drf21e/ChatTTS_Speaker) 预训练音色库
+3. 保存满意的音色 `.pt` 文件复用
+
+如需真正的音色克隆，请使用上述 5 个方案。
+
+---
+
+## 🚀 快速开始
 
 ### 环境要求
 
 - Python 3.9+
 - PyTorch 2.0+
-- CUDA 11.8+（推荐GPU加速）
+- CUDA 11.8+（GPU 加速）
+- 显存需求：4GB (Fish-Speech) ~ 8GB (其他)
 
-### 快速安装
+### 推荐：使用 Coqui XTTS（最简单）
 
 ```bash
-# 创建虚拟环境
-conda create -n voice-clone python=3.10
-conda activate voice-clone
+# 安装
+pip install TTS
 
-# 安装基础依赖
-pip install torch torchaudio
+# 克隆语音
+python -c "
+from TTS.api import TTS
+tts = TTS('tts_models/multilingual/multi-dataset/xtts_v2')
+tts.tts_to_file('你好世界', 'output.wav', speaker_wav='reference.wav', language='zh-cn')
+"
+```
 
-# 安装各方案依赖
-pip install chattts        # ChatTTS
-pip install TTS            # Coqui TTS
-pip install speechbrain    # SpeechBrain
+### 推荐：使用 GPT-SoVITS（中文最佳）
 
-# OpenVoice 需要从源码安装
-git clone https://github.com/myshell-ai/OpenVoice.git
-cd OpenVoice && pip install -e .
+```bash
+# 安装
+git clone https://github.com/RVC-Boss/GPT-SoVITS.git
+cd GPT-SoVITS && pip install -r requirements.txt
+
+# 启动 WebUI
+python webui.py
 ```
 
 ---
 
-## 参考资源
+## 📚 参考资源
 
-- [ChatTTS GitHub](https://github.com/2noise/chattts)
-- [OpenVoice GitHub](https://github.com/myshell-ai/OpenVoice)
-- [Coqui TTS GitHub](https://github.com/coqui-ai/TTS)
-- [SpeechBrain](https://speechbrain.github.io/)
-- [pyannote-audio](https://github.com/pyannote/pyannote-audio)
-- [ChatTTS_Speaker 音色库](https://github.com/6drf21e/ChatTTS_Speaker)
+| 项目 | GitHub | 论文/文档 |
+|------|--------|----------|
+| OpenVoice | [myshell-ai/OpenVoice](https://github.com/myshell-ai/OpenVoice) | [arXiv](https://arxiv.org/abs/2312.01479) |
+| Coqui TTS | [coqui-ai/TTS](https://github.com/coqui-ai/TTS) | [HuggingFace](https://huggingface.co/coqui/XTTS-v2) |
+| GPT-SoVITS | [RVC-Boss/GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) | [Wiki](https://github.com/RVC-Boss/GPT-SoVITS/wiki) |
+| CosyVoice | [FunAudioLLM/CosyVoice](https://github.com/FunAudioLLM/CosyVoice) | [arXiv](https://arxiv.org/abs/2407.05407) |
+| Fish-Speech | [fishaudio/fish-speech](https://github.com/fishaudio/fish-speech) | [arXiv](https://arxiv.org/abs/2411.01156) |
 
 ---
 
 ## License
 
-本文档及示例代码采用 MIT 许可证。
+本项目代码采用 MIT 许可证。各方案请遵循其原始许可。

@@ -50,7 +50,10 @@
       "WebFetch",
       "mcp__chrome__*",
       "Bash(git commit -m \"$(cat <<''EOF''\nfeat: 添加音色克隆TTS技术方案和权限配置\n\n- 创建 voice-clone-tts 项目目录，包含完整技术方案文档\n- 添加 5 种音色克隆方案的示例代码：\n  - ChatTTS: 中文对话TTS\n  - OpenVoice: 音色克隆\n  - Coqui XTTS-v2: 多语言克隆\n  - SpeechBrain: 说话人嵌入提取\n  - OpenVoice + ChatTTS 组合方案（推荐）\n- 配置 Claude Code 常用权限豁免\n  - Git 全系列命令\n  - 文件操作命令\n  - Python/Node.js 开发工具\n  - 浏览器 MCP 工具\n  - WebSearch/WebFetch\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
-      "Bash(git config:*)"
+      "Bash(git config:*)",
+      "Bash(unset:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": []
