@@ -1,0 +1,84 @@
+# 敏感信息 - 绝对不能提交
+.env
+.env.*
+.env.local
+.env.*.local
+*.env
+
+# 密钥和证书
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+*.ppk
+
+# 配置文件（可能包含密码/IP/账号）
+config.json
+config.local.json
+secrets.json
+credentials.json
+credentials.yml
+credentials.yaml
+*.secret
+*.secrets
+
+# SSH 配置
+ssh_config
+known_hosts
+
+# 数据库配置
+database.yml
+database.json
+db.json
+
+# 服务器部署配置（包含IP/账号）
+deploy.json
+deploy.yml
+deploy.yaml
+servers.json
+servers.yml
+hosts.ini
+inventory.ini
+ansible/hosts
+*.inventory
+servers-doc/
+
+# IDE
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+nul
+
+# 日志
+*.log
+logs/
+
+# 依赖
+node_modules/
+vendor/
+__pycache__/
+*.pyc
+
+# 构建输出
+dist/
+build/
+*.exe
+*.dll
+
+# 临时文件
+*.tmp
+*.temp
+.cache/
+tmp/
+temp/
